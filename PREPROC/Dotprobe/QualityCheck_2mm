@@ -1,0 +1,83 @@
+#!/bin/tcsh
+#script written to conduct quality checks.
+#8/29/12 updated to account for second visits
+
+
+set subj = $1
+set subj2 = `echo $subj | sed 's/_2//g'`
+
+set visit = $2
+set group = $3
+
+cd /raid4/sdanny/workingdata/tau/behav_data/onsets
+
+   prompt_user -pause "                      \
+      review behavioral data for correct file structure \
+      2 rows of onsets?                    \
+                                             \
+      --- click OK when finished ---         \
+      "
+
+more ${subj2}_visit${visit}_*
+
+
+cd /raid4/sdanny/workingdata/tau/Censoring2mm/InidividualAnalyses2mm/${group}/${subj}/*.results2mm
+
+echo "Check other motion limits"
+echo "Number of TRs that exceed 1 (default in ss_review_driver script is 0.3)"
+
+ 1deval -a motion_${subj}_enorm.1D -expr "step(a-1)" | awk '$1 !=0 {print}' | wc -l
+
+echo "Number of TRs that exceed 2 (default in ss_review_driver script is 0.3)"
+ 1deval -a motion_${subj}_enorm.1D -expr "step(a-2)" | awk '$1 !=0 {print}' | wc -l
+
+   prompt_user -pause "                      \
+      Record number of TRs exceed other motion limits.               \
+                                             \
+      --- click OK when finished ---   \
+      "
+
+./@ss_review_driver
+
+   prompt_user -pause "                      \
+      Load anat_final and check talaraich.  \
+      Set to 0, 0, 0. Then, scroll through to make sure looks even               \
+                                             \
+      --- click OK when finished ---   \
+      "
+
+afni anat_final.${subj}+tlrc.BRIK
+
+
+
+   prompt_user -pause "                      \
+      Check fitts of regression  \
+      Load all_runs as underlay. Load fitts and check that the black and red lines match              \
+                                             \
+      --- click OK when finished ---   \
+      "
+afni 
+
+
+
+   prompt_user -pause "                      \
+      Check coregistration between anat and epi data  \
+      Hit enter in terminal window to toggle between original and coregistered image               \
+                                             \
+      --- click OK when finished ---  \
+      "
+
+cd AddEdge
+
+
+afni -niml -yesplugouts & ; @AddEdge -single_edge
+
+ 
+
+cd ..
+
+
+cd /raid4/sdanny/workingdata/tau/scripts
+
+
+

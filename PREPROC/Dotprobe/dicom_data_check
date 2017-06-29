@@ -1,0 +1,185 @@
+#! /bin/csh
+
+set numargs = $#argv
+if ($numargs != 1) then
+ echo ""
+  echo "Usage:"
+  echo "        tcsh dicom_data_check_750 group subject"
+  echo ""
+  echo "	where"
+  echo ""
+  echo "	group 	   is the diagnosis group"
+  echo "	subject	   is subject number (do not prefix with s)"
+  echo "        
+  echo "         
+  echo ""
+  echo "	dicom_data_check_750 is a text file that converts fMRI data in dicom"
+  echo "	format to afni usuable BRIK files. There is an option"
+  echo "	to have the structural scan converted at the same time."
+  echo "	If you do not want the structural scan processed remember to" 
+  echo "	enter n."
+  echo ""
+  echo ""
+  exit
+endif
+
+#set group = $1
+set sj = $1
+#set mri = $3
+set runcount = 1
+#echo "These are the arguments "$sj" being used"
+echo "These are the arguments  "$sj" being used"
+cd ../subjects/"s"$sj
+echo " Here is the directory where the data processing is going to occur" 
+pwd
+
+
+set scanaq = "tau"
+set runs = 6
+cat Abbreviated-README.txt
+
+cat Abbreviated-README.txt | grep $scanaq | cut -d: -f3 | cut -d "," -f1 > epi_scan_list
+
+echo anat directory
+#cat anat_dir_list
+
+cat Abbreviated-README.txt | grep mprage | grep -v 1240 |cut -d: -f3 | cut -d "," -f1 > anat_dir_list
+set runs = `wc epi_scan_list  | cut -d " " -f2`
+
+echo functional runs
+cat epi_scan_list
+echo "Are the functional run directories correct? enter y/n. If no, then type in correct directories."
+set ok = $<
+
+if ($ok == 'n') then
+	rm epi_scan_list
+	echo "Enter new directories"
+	set count = 1
+	while ($count <= $runs)
+		set run_dir = $<
+		echo $run_dir >> new_epi_scan_list
+		@ count++
+	end
+	mv new_epi_scan_list epi_scan_list
+endif
+
+############Make OutBrick files#########################################################
+echo "Working on Run "$runcount
+
+mkdir afni
+echo `cat epi_scan_list` > dir_list 
+	foreach scan_dir ( `cat dir_list` )
+		set scan = $scan_dir"/"
+    		set run_num = `echo $scan_dir | sed "s/0*//"`
+		echo ""
+   		echo "Working on Run" $runcount" in directory "$scan_dir
+		Dimon -GERT_Reco -infile_pattern "$scan*.dcm" -gert_to3d_prefix "OutBrick_r"$runcount -quit
+		./GERT_Reco_dicom*
+		echo ""	
+   rm dimon* GERT*
+mv OutBrick* afni
+
+cd afni
+############Movement check#########################################################
+	3dTshift -tzero 0 -prefix 'test'$runcount 'OutBrick_r'$runcount'+orig'
+	echo "done shift"
+	3dvolreg  -prefix 'test'$runcount'tp'		\
+	 -base 'OutBrick_r'$runcount'+orig'"[10]"			\
+	 -dfile '3dmotion'$runcount'.1D' 'test'$runcount'+orig'	
+	echo 	"Done processing Run $runcount"	
+
+
+
+	@ fmri++
+	@ runcount++
+	cd ..
+end
+cd afni
+set runcount = "1"
+while ($runcount <= $runs)
+	1dplot  -volreg '3dmotion'$runcount'.1D[1..6]'
+	@ runcount++
+end
+					
+rm test* 	
+cd ..
+
+############Create 3D Structural#########################################################
+
+pwd
+
+#if ($mri != "n") then
+	set dir =  `cat anat_dir_list`
+	cd anat
+	to3d -prefix "s"$sj"_anat" $dir/*dcm
+	cp  "s"$sj"_anat"* ../afni
+	cd ..
+#endif
+rm *list
+cd afni
+############Look at data#########################################################
+
+echo "Do you want to go to the movies? y/n "
+set movie = $<
+if ($movie == "y") then
+
+set anat = "s"$sj"_anat"
+
+
+
+afni -niml -yesplugouts -layout layout   &
+
+plugout_drive	-com 'SWITCH_SESSION A.afni '  \
+		-com "SWITCH_UNDERLAY A.$anat" \
+		-com 'OPEN_WINDOW A.sagittalimage geom=300x300+60+10 \
+		      ifrac=0.8 opacity=9' \
+		-com 'OPEN_WINDOW A.axialimage geom=350x350+500+10 \
+		      ifrac=0.8 opacity=9'  \
+		-com 'OPEN_WINDOW A.axialimage keypress=v' \
+-quit
+                              
+echo "Hit the [spacebar] to pause movie, [enter] to move on to EPI data"
+set l = $<
+
+plugout_drive	-com 'OPEN_WINDOW A.axialimage keypress=space' \
+		-quit
+
+
+echo "Hit Enter to examine time series."
+echo ""
+set runcount = '1'
+set epi = "OutBrick_r$runcount"
+echo $epi $anat $runcount
+
+while ($runcount <= $runs)
+	set epi = "OutBrick_r$runcount"
+	#Now let us examine the time seriesniml
+
+	plugout_drive	-com 'SWITCH_SESSION B.afni '  \
+			-com "SET_DICOM_XYZ B 0 -30 10" \
+			-com "SWITCH_UNDERLAY B.$epi" \
+			-com 'OPEN_WINDOW B.sagittalimage geom=400x400+440+344 \
+			      ifrac=0.8 opacity=9' \
+			-com 'OPEN_WINDOW B.sagittalgraph \
+			      geom=400x300+0+344' \
+			-com 'OPEN_WINDOW B.sagittalgraph \
+			      keypress=v' \
+			 -quit
+
+	echo "Hit Enter to exit"
+	set l = $<
+	plugout_drive	-com 'OPEN_WINDOW B.sagittalgraph keypress=space' \
+			-quit
+
+	@ fmri++
+	@ runcount++
+
+end
+endif
+plugout_drive	-com 'OPEN_WINDOW B.sagittalgraph keypress=space' \
+		-com 'QUIT' \
+		-quit
+
+echo "fini"
+exit 
+endif 

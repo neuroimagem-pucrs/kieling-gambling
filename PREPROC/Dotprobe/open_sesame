@@ -1,0 +1,37 @@
+#! /bin/csh
+#modified to account for tau structure.
+#Intended to run from scripts directory.
+
+set numargs = $#argv
+if ($numargs != 4) then
+echo "Usage:"
+  echo "        open_sesame subject task date visit"
+  echo ""
+  echo "	This scrit will copy the dat from /raid4/rawdata/3TC750"
+  echo "	Then unzip, untar and remove the data tar file"
+  echo ""
+  exit
+endif
+
+
+set sj = $1
+set task = $2
+set date = $3
+set visit = $4
+
+cd /raid4/sdanny/workingdata/tau/subjects/
+
+if ($visit == 1 ) then
+mkdir "s"$sj
+cd "s"$sj
+else if ($visit == 2) then 
+mkdir "s"$sj"_2"
+cd "s"$sj"_2"
+endif
+
+cp /raid4/rawdata/3Tb/"s"$sj"_"$task"_"$date".tar.gz" .
+
+gunzip *z
+tar xvf *tar
+
+rm "s"$sj"_"$task"_"$date".tar"
